@@ -725,35 +725,42 @@ function drawBgCity() {
 }
 
 // ── full color: daylight sky, sun, bright colored buildings ──
-const CITY_COLORS = ['#ef5350','#42a5f5','#ffee58','#66bb6a','#ffa726','#26c6da','#ec407a','#7e57c2'];
+// Muted, slightly desaturated city palette — easier on the eyes
+const CITY_COLORS = ['#c0544f','#3b7dbf','#c8b84a','#4e9955','#c07a30','#2899a8','#b84d7a','#6b4fb0'];
 function drawBgColorCity() {
   const sc = T().starColor;
-  // Sparse stars still visible as birds/dots
+  // Sparse stars
   for (const s of stars.slice(0, 15)) {
-    const a = 0.15 + 0.2 * Math.abs(Math.sin(s.ph + frame * 0.02));
+    const a = 0.1 + 0.15 * Math.abs(Math.sin(s.ph + frame * 0.02));
     ctx.fillStyle = sc + a.toFixed(2) + ')';
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.7, 0, Math.PI * 2); ctx.fill();
   }
-  // Sun
+  // Sun (softer glow)
   const sunX = W * 0.78, sunY = 55;
-  const sg = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 55);
-  sg.addColorStop(0, 'rgba(255,255,200,1)'); sg.addColorStop(0.45, 'rgba(255,220,70,0.55)'); sg.addColorStop(1, 'rgba(255,200,0,0)');
-  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sunX, sunY, 55, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#ffee58'; ctx.strokeStyle = '#fff176'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(sunX, sunY, 18, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-  // Colorful buildings
+  const sg = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 50);
+  sg.addColorStop(0, 'rgba(255,240,160,0.85)'); sg.addColorStop(0.5, 'rgba(255,210,60,0.3)'); sg.addColorStop(1, 'rgba(255,200,0,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sunX, sunY, 50, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#f5d040'; ctx.strokeStyle = '#e8c030'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(sunX, sunY, 16, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // Buildings
   for (const b of buildings) {
     const col = CITY_COLORS[Math.abs(Math.floor(b.x*7.3+b.y*3.1)) % CITY_COLORS.length];
-    ctx.fillStyle = col; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+    ctx.fillStyle = col; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 2;
     ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeRect(b.x, b.y, b.w, b.h);
+    // Dark overlay on building face so windows don't bleed into sky
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    // Subtle, low-contrast windows
     for (let wy = b.y+10; wy < b.y+b.h-8; wy += 18)
       for (let wx = b.x+7; wx < b.x+b.w-7; wx += 16) {
-        ctx.fillStyle = Math.sin(wx*4.1+wy*2.7) > 0 ? 'rgba(255,255,200,0.9)' : 'rgba(0,0,0,0.3)';
+        ctx.fillStyle = Math.sin(wx*4.1+wy*2.7) > 0
+          ? 'rgba(255,245,180,0.28)'   // lit window — soft, dim
+          : 'rgba(0,0,0,0.35)';        // dark window
         ctx.fillRect(wx, wy, 8, 6);
       }
-    // Flag on roof
-    ctx.fillStyle = '#fff'; ctx.fillRect(b.x+b.w*0.4, b.y-12, 2, 12);
-    ctx.fillStyle = col; ctx.fillRect(b.x+b.w*0.42, b.y-12, 10, 7);
+    // Small flag on roof
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(b.x+b.w*0.4, b.y-10, 2, 10);
+    ctx.fillStyle = col; ctx.fillRect(b.x+b.w*0.42, b.y-10, 8, 6);
   }
 }
 
