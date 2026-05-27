@@ -180,6 +180,7 @@ const player = {
   x: 130, y: 0, w: 58, h: 58,
   vy: 0, jumps: 0, maxJumps: 2,
   onGround: true, alive: true,
+  prevY: 0,
   sx: 1, sy: 1,          // squish/stretch scale
   rot: 0,
   blinkT: 0, blinkLen: 100, blinking: false,
@@ -207,6 +208,9 @@ const player = {
   },
 
   update() {
+    // Track previous Y for block-landing detection
+    this.prevY = this.y;
+
     // Blink
     this.blinkT++;
     if (this.blinkT > this.blinkLen)   this.blinking = true;
@@ -215,12 +219,15 @@ const player = {
       this.blinkLen = 80 + Math.random() * 100;
     }
 
+    // Reset onGround — collision checks below will set it if needed
+    this.onGround = false;
+
     // Physics
     this.vy += GRAVITY;
     this.y  += this.vy;
-    if (!this.onGround) this.rot += (this.jumps >= 2 ? 0.04 : 0.01);
+    if (this.vy !== 0) this.rot += (this.jumps >= 2 ? 0.04 : 0.01);
 
-    // Ground
+    // Ground (GROUND_Y)
     if (this.y >= GROUND_Y - this.h) {
       this.y = GROUND_Y - this.h;
       if (this.vy > 6) { this.sx = 1.45; this.sy = 0.55; }
@@ -464,22 +471,38 @@ function gameOver() {
 }
 
 // ─── COLLISION ───────────────────────────────────────────────────────────────
-function checkCollision() {
+function resolveCollisions() {
   const hb = player.hb;
   for (const o of obstacles) {
+    // Broad phase
     if (hb.x + hb.w <= o.x || hb.x >= o.x + o.w) continue;
     if (hb.y + hb.h <= o.y || hb.y >= o.y + o.h) continue;
+
     if (o.type === 'spike') {
-      // Triangle precision
-      const px = hb.x + hb.w / 2;
-      const py = hb.y + hb.h;
-      const tipX = o.x + o.w / 2;
+      // Spikes always kill — triangle precision test
+      const px  = hb.x + hb.w / 2;
+      const py  = hb.y + hb.h;
+      const tipX     = o.x + o.w / 2;
       const halfBase = o.w / 2;
-      const frac = Math.max(0, 1 - Math.abs(px - tipX) / halfBase);
+      const frac     = Math.max(0, 1 - Math.abs(px - tipX) / halfBase);
       const spikeTopAtX = o.y + o.h - frac * o.h;
       if (py > spikeTopAtX + 6) return true;
     } else {
-      return true;
+      // Block — landing on top is safe; hitting the side kills
+      // "From above" = previous visual bottom was at or above the block top
+      const prevBottom = player.prevY + player.h;
+      if (prevBottom <= o.y + 10 && player.vy >= 0) {
+        // Land safely on top of block
+        if (player.vy > 4) { player.sx = 1.45; player.sy = 0.55; }
+        player.y       = o.y - player.h;
+        player.vy      = 0;
+        player.jumps   = 0;
+        player.onGround = true;
+        player.rot     *= 0.6;
+        spawnJumpDust(player.x + player.w / 2, player.y + player.h);
+      } else {
+        return true; // side collision — die
+      }
     }
   }
   return false;
@@ -528,7 +551,7 @@ function update() {
 
     groundOff = (groundOff + speed) % 60;
 
-    if (checkCollision()) gameOver();
+    if (resolveCollisions()) gameOver();
   }
 
   if (state === 'dead') deathTimer++;
@@ -683,17 +706,26 @@ function drawSpike({ x, y, w, h }) {
   ctx.ellipse(x + w / 2, GROUND_Y + 6, w * 0.42, 6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body
-  const sg = ctx.createLinearGradient(x, y, x + w, y + h);
-  sg.addColorStop(0, '#999'); sg.addColorStop(0.5, '#606060'); sg.addColorStop(1, '#333');
+  // Body — red
+  const sg = ctx.createLinearGradient(x, y, x, y + h);
+  sg.addColorStop(0, '#ff3322'); sg.addColorStop(0.5, '#cc1100'); sg.addColorStop(1, '#7a0000');
   ctx.fillStyle = sg;
   ctx.strokeStyle = '#000'; ctx.lineWidth = 3.5;
   ctx.beginPath();
   ctx.moveTo(x, y + h); ctx.lineTo(x + w / 2, y); ctx.lineTo(x + w, y + h);
   ctx.closePath(); ctx.fill(); ctx.stroke();
 
+  // Red glow at base
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h, w * 0.55, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   // Highlight
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,180,180,0.4)'; ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(x + w * 0.28, y + h * 0.75); ctx.lineTo(x + w / 2, y + 5);
   ctx.stroke();
